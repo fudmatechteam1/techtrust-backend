@@ -4,23 +4,36 @@ const cors = require("cors")
 const cookieParser = require("cookie-parser")
 const dbConnection = require("./Dbconnection/dbConfig.js")
 const router = require("./Routes/authRoute.js")
- require("dotenv").config()
- const app = express()
-
+require("dotenv").config()
+const app = express()
 
 dbConnection()
-const URLs = ['http://localhost:5173'," https://fudmatechteam1.github.io/techtrust-frontend/"]
+
+// FIXED: Removed the space and the subpath from the URL
+const URLs = [
+    'http://localhost:5173',
+    'https://fudmatechteam1.github.io'
+]
+
 app.use(cookieParser()) 
 app.use(express.json())
+
+// FIXED: Improved CORS matching logic
 app.use(cors({
-    origin: URLs,
+    origin: function (origin, callback) {
+        if (!origin || URLs.includes(origin)) {
+            callback(null, true)
+        } else {
+            callback(new Error('Not allowed by CORS'))
+        }
+    },
     credentials: true
 }))
 
-const port = process.env.PORT | 4000
+const port = process.env.PORT || 4000
 
-app.listen(port,()=>{
+app.use("/api/auth", router)
+
+app.listen(port, () => {
     console.log(`server is running on http://localhost:${port}`)
 })
-
-app.use("/api/auth",router)
