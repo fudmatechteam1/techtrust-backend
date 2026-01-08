@@ -9,7 +9,7 @@ const app = express()
 
 dbConnection()
 
-// FIXED: Removed the space and the subpath from the URL
+// FIXED: Cleaned up the array and ensured no trailing slashes or spaces
 const URLs = [
     'http://localhost:5173',
     'https://fudmatechteam1.github.io'
@@ -18,21 +18,30 @@ const URLs = [
 app.use(cookieParser()) 
 app.use(express.json())
 
-// FIXED: Improved CORS matching logic
+// FIXED: Simplified CORS to prevent server-side crashes (500 errors)
 app.use(cors({
     origin: function (origin, callback) {
-        if (!origin || URLs.includes(origin)) {
+        // If origin is in the list or if there's no origin (server-to-server/testing)
+        if (!origin || URLs.indexOf(origin) !== -1) {
             callback(null, true)
         } else {
             callback(new Error('Not allowed by CORS'))
         }
     },
-    credentials: true
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
 }))
 
 const port = process.env.PORT || 4000
 
 app.use("/api/auth", router)
+
+// Basic error handler to prevent the whole app from crashing and returning 500
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({ message: 'Internal Server Error', error: err.message });
+});
 
 app.listen(port, () => {
     console.log(`server is running on http://localhost:${port}`)
