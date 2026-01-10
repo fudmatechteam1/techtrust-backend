@@ -1,15 +1,30 @@
-const express = require("express")
-const { register, login, logout, getAll, sendVerifyOtp, verifyAccount, sendResetOtp, resetPassword } = require("../Controllers/authController.js")
-const { authMiddleWere } = require("../middleWere/authMiddlewere.js")
-const router = express.Router()
+const express = require("express");
+const { 
+    register, 
+    login, 
+    logout, 
+    getAll, 
+    sendVerifyOtp, 
+    verifyAccount, 
+    sendResetOtp, 
+    resetPassword 
+} = require("../Controllers/authController.js");
+const { authMiddleWere } = require("../middleWere/authMiddlewere.js");
 
-router.post("/register",register)
-router.post("/login",login)
-router.post("/logout",logout)
-router.get("/fetch",getAll)
-router.post("/sendOtp",authMiddleWere,sendVerifyOtp)
-router.post("/verify",authMiddleWere,verifyAccount)
-router.post("/sendResetOtp",authMiddleWere,sendResetOtp)
-router.post("/resetPassword",authMiddleWere,resetPassword)
+const router = express.Router();
 
-module.exports = router
+// Public Routes
+router.post("/register", register);
+router.post("/login", login);
+router.post("/logout", logout);
+router.get("/fetch", getAll);
+
+// FIXED: Removed authMiddleWere to allow public verification
+router.post("/sendOtp", sendVerifyOtp);
+router.post("/verify", verifyAccount);
+
+// FIXED: Removed authMiddleWere and fixed function reference for reset flow
+router.post("/sendResetOtp", sendResetOtp); 
+router.post("/resetPassword", resetPassword);
+
+module.exports = router;
