@@ -140,12 +140,18 @@ exports.sendVerifyOtp = async(req, res)=>{
     }
 
     try {
+        // Check if email service is configured
+        if(!process.env.SENDER_EMAIL || !process.env.SENDER_PASSWORD){
+            console.error("Email service not configured: Missing SENDER_EMAIL or SENDER_PASSWORD")
+            return res.status(503).json({message: "Email service is not configured. Please contact support."})
+        }
+
         const user = await User.findOne({email})
         if(!user){
             return res.status(404).json({message: "User not found"})
         }
         if(user.isAccountVerify){
-            return res.status(400).json({message: "Users Already Verified..."})
+            return res.status(400).json({message: "User Already Verified"})
         }
         const otp = String(Math.floor(100000 + Math.random() * 900000))
         user.verifyOtp = otp;
@@ -157,15 +163,33 @@ exports.sendVerifyOtp = async(req, res)=>{
             from: process.env.SENDER_EMAIL,
             to: user.email,
             subject: "Verification Otp Code",
-            text: `Your Verification Code is ${otp}, Valid for 10min`
+            text: `Your Verification Code is ${otp}, Valid for 10 minutes`
         }
 
-        await transporter.sendMail(mailOption)
+        // Add timeout for email sending (15 seconds)
+        const emailPromise = transporter.sendMail(mailOption)
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error("Email sending timeout after 15 seconds")), 15000)
+        )
 
-        res.status(200).json({message: "Otp Code Send Successful"})
+        await Promise.race([emailPromise, timeoutPromise])
+
+        res.status(200).json({message: "OTP Code sent successfully"})
     } catch (error) {
-        console.log(error)
-        res.status(500).json({message: error.message})
+        console.error("SendVerifyOtp Error:", error)
+        
+        // Provide more specific error messages
+        if(error.message && error.message.includes("timeout")){
+            return res.status(504).json({message: "Email service timeout. Please try again later."})
+        }
+        if(error.message && error.message.includes("Invalid login")){
+            return res.status(500).json({message: "Email service configuration error. Please contact support."})
+        }
+        if(error.code === "EAUTH"){
+            return res.status(500).json({message: "Email authentication failed. Please check email credentials."})
+        }
+        
+        res.status(500).json({message: error.message || "Failed to send OTP. Please try again later."})
     }
 }
 
@@ -204,38 +228,63 @@ exports.verifyAccount = async(req,res)=>{
 
 exports.sendResetOtp = async(req,res)=>{
     const {email} = req.body
-     if(!email){
-            return res.status(400).json({message: "Input Field Are Required..."})
+    
+    if(!email){
+        return res.status(400).json({message: "Email is required"})
+    }
+
+    try {
+        // Check if email service is configured
+        if(!process.env.SENDER_EMAIL || !process.env.SENDER_PASSWORD){
+            console.error("Email service not configured: Missing SENDER_EMAIL or SENDER_PASSWORD")
+            return res.status(503).json({message: "Email service is not configured. Please contact support."})
         }
 
-        try {
-            const user = await User.findOne({email})
-            if(!user){
-                 return res.status(404).json({message: "Users Not Found..."})
-            }
-
-            const otp = String(Math.floor(100000 + Math.random() * 900000))
-            const resetOtpExpireAt = Date.now() + 10 * 60 * 1000
-
-            user.resetOtp = otp;
-            user.resetOtpExpireAt = resetOtpExpireAt
-
-            await user.save()
-
-            const mailOption = {
-                from: process.env.SENDER_EMAIL,
-                to: email,
-                subject: "Reset Password Otp",
-                text: `your reset otp is ${otp}, reset your password with this otp code`
-            }
-            await transporter.sendMail(mailOption)
-
-            res.status(200).json({message: "reset otp send successful"})
-        } catch (error) {
-             console.log(error)
-        res.status(500).json({message: error.message})
+        const user = await User.findOne({email})
+        if(!user){
+            return res.status(404).json({message: "User not found"})
         }
 
+        const otp = String(Math.floor(100000 + Math.random() * 900000))
+        const resetOtpExpireAt = Date.now() + 10 * 60 * 1000
+
+        user.resetOtp = otp;
+        user.resetOtpExpireAt = resetOtpExpireAt
+
+        await user.save()
+
+        const mailOption = {
+            from: process.env.SENDER_EMAIL,
+            to: email,
+            subject: "Reset Password Otp",
+            text: `Your reset OTP is ${otp}, valid for 10 minutes. Use this OTP code to reset your password.`
+        }
+
+        // Add timeout for email sending (15 seconds)
+        const emailPromise = transporter.sendMail(mailOption)
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error("Email sending timeout after 15 seconds")), 15000)
+        )
+
+        await Promise.race([emailPromise, timeoutPromise])
+
+        res.status(200).json({message: "Reset OTP sent successfully"})
+    } catch (error) {
+        console.error("SendResetOtp Error:", error)
+        
+        // Provide more specific error messages
+        if(error.message && error.message.includes("timeout")){
+            return res.status(504).json({message: "Email service timeout. Please try again later."})
+        }
+        if(error.message && error.message.includes("Invalid login")){
+            return res.status(500).json({message: "Email service configuration error. Please contact support."})
+        }
+        if(error.code === "EAUTH"){
+            return res.status(500).json({message: "Email authentication failed. Please check email credentials."})
+        }
+        
+        res.status(500).json({message: error.message || "Failed to send reset OTP. Please try again later."})
+    }
 }
 
 exports.resetPassword = async(req,res)=>{
