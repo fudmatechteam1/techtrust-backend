@@ -13,17 +13,20 @@ const transporter = nodemailer.createTransport({
     tls: {
         rejectUnauthorized: false // Helps prevent connection drops on some networks
     },
-    connectionTimeout: 10000, // 10 seconds connection timeout
-    greetingTimeout: 10000,   // 10 seconds greeting timeout
-    socketTimeout: 10000      // 10 seconds socket timeout
+    connectionTimeout: 20000, // 20 seconds connection timeout (increased for Render)
+    greetingTimeout: 15000,   // 15 seconds greeting timeout
+    socketTimeout: 15000      // 15 seconds socket timeout
 });
 
-// Verify connection configuration on startup
+// Verify connection configuration on startup (non-blocking)
+// This runs in the background and won't block server startup
 transporter.verify((error, success) => {
     if (error) {
-        console.log("SMTP Connection Error:", error);
+        console.log("⚠ SMTP Connection Warning:", error.message);
+        console.log("   Email functionality may not work until SMTP is configured correctly.");
+        console.log("   Check SENDER_EMAIL and SENDER_PASSWORD environment variables.");
     } else {
-        console.log("SMTP Server is ready to send emails");
+        console.log("✓ SMTP Server is ready to send emails");
     }
 });
 
