@@ -13,7 +13,7 @@ dbConnection()
 const URLs = [
     'http://localhost:5173',
     'https://fudmatechteam1.github.io',
-    'http: //127.0.0.1:5500' //This is for my local host
+    'http://127.0.0.1:5500' //This is for my local host
 ]
 
 app.use(cookieParser()) 

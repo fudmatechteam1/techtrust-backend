@@ -19,10 +19,10 @@ exports.fetchUserById = async(req,res)=>{
 exports.fetchAll = async(req,res)=>{
     try {
         const profile = await Profile.find()
-        if(!profile){
+        if(!profile || profile.length === 0){
             return res.status(404).json({message: "User not Found.."})
         }
-        await res.status(200).json({message:profile})
+        res.status(200).json({message:profile})
     } catch (error) {
         console.log(error)
         res.status(500).json({message: error.message})
@@ -62,18 +62,21 @@ exports.fetchById = async(req,res)=>{
 }
 
 exports.updateProfile = async(req,res)=>{
-    const id = req.params.id
+    const id = req.body.id || req.params.id
+
+    if(!id){
+        return res.status(400).json({message: "Profile ID is required"})
+    }
 
     try {
-         const profile = await Profile.find(id)
+        const profile = await Profile.findById(id)
         if(!profile){
-            return res.status(404).json({message: "User not Found.."})
+            return res.status(404).json({message: "Profile not Found.."})
         }
 
-        const newProfile = await Profile.findByIdAndDelete(id,req.body,{new:true})
-        await newProfile.save();
+        const updatedProfile = await Profile.findByIdAndUpdate(id, req.body, {new: true, runValidators: true})
 
-        res.status(200).json({message:"Profile Update Successfull"})
+        res.status(200).json({message:"Profile Update Successfull", profile: updatedProfile})
     } catch (error) {
         console.log(error)
         res.status(500).json({message: error.message})

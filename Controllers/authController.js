@@ -1,55 +1,70 @@
 const User = require("../Models/User.js")
 const bcrypt = require("bcryptjs")
 const jwt = require("jsonwebtoken")
-const transporter  = require("../Nodemailer/transporter.js")
-// const { text } = require("express")
+const transporter = require("../Nodemailer/transporter.js")
 
-
-exports.register = async(req,res)=>{
-    const {name, email,password,userType} = req.body
-    if(!name || !email || !password || !userType){
-        return res.status(400).json({message: "Input Field are Required"})
+exports.register = async (req, res) => {
+    const { name, email, password, userType } = req.body
+    
+    // 1. Basic Validation
+    if (!name || !email || !password || !userType) {
+        return res.status(400).json({ message: "All fields are required" })
     }
-     const userExist = await User.findOne({email})
-        if(userExist){
-            return res.status(400).json({message: "User Already Exist"})
-        }
+
     try {
-        const users = await User.find()
-        const userType1 = users.length === 0 ? "admin" : "recruiter"
-        
-        const userID = "USER-"+ Math.random().toString(36).substr(2,9).toUpperCase();
-        const hashePassword = await bcrypt.hash(password, 10)
-        const user = new User({name,email,password:hashePassword,userType1,userType})
-        user.userID = userID
-        user.userType = userType
-        await user.save()
-
-        const token = jwt.sign({id: user._id,role:user.userType},process.env.JWT_SCRET,{expiresIn:"7d"})
-
-        res.cookie("token",token,{
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            samSite: process.env.NODE_ENV === "production" ?
-            "none":"lax",
-            maxAge: 5 * 24 * 60 * 1000
-        })
-
-        const mailOption = {
-            from: process.env.SENDER_EMAIL,
-            to: email,
-            subject: "Tech-Trust Account",
-            text: `Hello ${name} welcome to tech-trust, your account has been created with gmail:${email}`,
+        // 2. Check if user already exists
+        const userExist = await User.findOne({ email })
+        if (userExist) {
+            return res.status(400).json({ message: "User already exists" })
         }
 
-        await transporter.sendMail(mailOption);
+        // 3. Prepare User Data
+        // Note: Check your User model. If it expects 'role' instead of 'userType', change it here.
+        const usersCount = await User.countDocuments();
+        const isAdmin = usersCount === 0;
+        
+        const userID = "USER-" + Math.random().toString(36).substr(2, 9).toUpperCase();
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-        res.status(201).json({message:"User Created Successfull"})
+        // Fixed: Ensure these fields exist in your Models/User.js file
+        const user = new User({
+            name,
+            email,
+            password: hashedPassword,
+            userType: userType, // Ensure your schema uses this exact key
+            userID: userID
+        });
+
+        await user.save();
+
+        // 4. Generate Token
+        const token = jwt.sign(
+            { id: user._id, role: user.userType },
+            process.env.JWT_SCRET || 'fallback_secret', // Use SCRET to match your env
+            { expiresIn: "7d" }
+        );
+
+        // 5. Set Cookie and Respond
+        res.cookie("token", token, {
+            httpOnly: true,
+            secure: true, // Required for cross-site cookies
+            sameSite: "none", // Required for GitHub Pages to Render communication
+            maxAge: 7 * 24 * 60 * 60 * 1000
+        });
+
+        return res.status(201).json({ 
+            success: true, 
+            message: "Registration successful",
+            user: { name: user.name, email: user.email, userType: user.userType }
+        });
+
     } catch (error) {
-        console.log(error)
-        res.status(500).json({message: error.message})
+        console.error("Registration Error:", error);
+        // This returns the specific validation error so you can see which field failed
+        return res.status(500).json({ message: "Validation Failed", error: error.message });
     }
 }
+
 
 exports.login = async(req, res)=>{
     const {email, password} = req.body
@@ -70,12 +85,15 @@ exports.login = async(req, res)=>{
             res.cookie("token",token,{
                 httpOnly:true,
                 secure: process.env.NODE_ENV === "production",
-                samSite: process.env.NODE_ENV === "production" ?
+                sameSite: process.env.NODE_ENV === "production" ?
                 "none":"lax",
                 maxAge: 5 * 24 * 60 * 1000
             })
 
-            res.status(200).json({message:"User logging Successful"})
+            res.status(200).json({
+                message:"User logging Successful",
+                user: { name: user.name, email: user.email, userType: user.userType, id: user._id }
+            })
         } catch (error) {
              console.log(error)
              res.status(500).json({message: error.message})
@@ -87,7 +105,7 @@ exports.logout = async(req,res)=>{
         res.clearCookie("token",{
              httpOnly:true,
             secure: process.env.NODE_ENV === "production",
-            samSite: process.env.NODE_ENV === "production" ?
+            sameSite: process.env.NODE_ENV === "production" ?
             "none":"lax",
         })
           res.status(200).json({message:"User logout Successful"})
@@ -115,10 +133,17 @@ exports.getAll = async(req,res)=>{
 }
 
 exports.sendVerifyOtp = async(req, res)=>{
-    const userid = req.user.id
+    const {email} = req.body
+    
+    if(!email){
+        return res.status(400).json({message: "Email is required"})
+    }
 
     try {
-        const user = await User.findById(userid)
+        const user = await User.findOne({email})
+        if(!user){
+            return res.status(404).json({message: "User not found"})
+        }
         if(user.isAccountVerify){
             return res.status(400).json({message: "Users Already Verified..."})
         }
@@ -132,7 +157,7 @@ exports.sendVerifyOtp = async(req, res)=>{
             from: process.env.SENDER_EMAIL,
             to: user.email,
             subject: "Verification Otp Code",
-            text: `Your Verification Code is ${otp}, Valid fro 10min`
+            text: `Your Verification Code is ${otp}, Valid for 10min`
         }
 
         await transporter.sendMail(mailOption)
@@ -145,18 +170,21 @@ exports.sendVerifyOtp = async(req, res)=>{
 }
 
 exports.verifyAccount = async(req,res)=>{
-    const {otp} = req.body
-    const userid= req.user.id
+    const {email, otp} = req.body
+    
+    if(!email || !otp){
+        return res.status(400).json({message: "Email and OTP are required"})
+    }
 
     try {
-        const user = await User.findById(userid)
-         if(!user){
+        const user = await User.findOne({email})
+        if(!user){
             return res.status(404).json({message: "User not found"})
         }
         if(user.verifyOtp === "" || user.verifyOtp !== otp){
              return res.status(400).json({message: "Invalid Otp Code"})
         }
-        if(user.verifyOtpExpireAt > Date.now){
+        if(user.verifyOtpExpireAt < Date.now()){
             return res.status(400).json({message: "Otp Expired"})
         }
 
@@ -176,13 +204,13 @@ exports.verifyAccount = async(req,res)=>{
 
 exports.sendResetOtp = async(req,res)=>{
     const {email} = req.body
-     if(email){
+     if(!email){
             return res.status(400).json({message: "Input Field Are Required..."})
         }
 
         try {
             const user = await User.findOne({email})
-            if(!email){
+            if(!user){
                  return res.status(404).json({message: "Users Not Found..."})
             }
 
@@ -197,7 +225,7 @@ exports.sendResetOtp = async(req,res)=>{
             const mailOption = {
                 from: process.env.SENDER_EMAIL,
                 to: email,
-                subject: "Rest Password Otp",
+                subject: "Reset Password Otp",
                 text: `your reset otp is ${otp}, reset your password with this otp code`
             }
             await transporter.sendMail(mailOption)
@@ -225,12 +253,12 @@ exports.resetPassword = async(req,res)=>{
             return res.status(400).json({message: "Invalid Otp Code..."})
         }
 
-        if(resetOtpExpireAt > Date.now){
+        if(user.resetOtpExpireAt < Date.now()){
             return res.status(400).json({message: " Otp Code Expired..."})
         }
 
-        const newPassword = await bcrypt.hash(newPassword,10)
-        user.password = newPassword;
+        const hashedPassword = await bcrypt.hash(newPassword,10)
+        user.password = hashedPassword;
         user.resetOtp = "";
         user.resetOtpExpireAt = 0
 
