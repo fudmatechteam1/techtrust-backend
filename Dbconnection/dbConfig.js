@@ -8,11 +8,26 @@ const mongoose = require("mongoose")
 const dbConnection = async () => {
     try {
         // Get connection string from environment variable
-        const mongoUri = process.env.MONGO_URI || process.env.DDS_URI
+        let mongoUri = process.env.MONGO_URI || process.env.DDS_URI
         
         if (!mongoUri) {
             throw new Error("MONGO_URI or DDS_URI environment variable is not set")
         }
+
+        // Remove any invalid options from connection string that might cause errors
+        // These options should be set via mongoose.set() or connectionOptions, not in URI
+        const invalidUriOptions = [
+            'buffermaxentries',
+            'bufferMaxEntries',
+            'buffercommands',
+            'bufferCommands'
+        ];
+        
+        invalidUriOptions.forEach(option => {
+            // Remove option from query string if present
+            const regex = new RegExp(`[&?]${option}=[^&]*`, 'gi');
+            mongoUri = mongoUri.replace(regex, '');
+        });
 
         // Connection options optimized for Huawei Cloud and production environments
         const connectionOptions = {
@@ -32,10 +47,6 @@ const dbConnection = async () => {
             // Heartbeat settings for connection health
             heartbeatFrequencyMS: 10000,
             
-            // Buffer settings
-            bufferMaxEntries: 0, // Disable mongoose buffering
-            bufferCommands: false,
-            
             // Additional options for Huawei Cloud DDS compatibility
             ...(process.env.DB_SSL === 'true' && {
                 ssl: true,
@@ -45,6 +56,10 @@ const dbConnection = async () => {
             // Authentication options
             authSource: process.env.DB_AUTH_SOURCE || 'admin',
         }
+
+        // Configure Mongoose buffering separately (not in connection options)
+        mongoose.set('bufferCommands', false);
+        mongoose.set('bufferMaxEntries', 0);
 
         // Connect to database
         await mongoose.connect(mongoUri, connectionOptions)
