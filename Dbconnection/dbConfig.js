@@ -15,7 +15,7 @@ const dbConnection = async () => {
         }
 
         // Remove any invalid options from connection string that might cause errors
-        // These options should be set via mongoose.set() or connectionOptions, not in URI
+        // These Mongoose-specific options are deprecated and should not be in URI or connection options
         const invalidUriOptions = [
             'buffermaxentries',
             'bufferMaxEntries',
@@ -24,10 +24,15 @@ const dbConnection = async () => {
         ];
         
         invalidUriOptions.forEach(option => {
-            // Remove option from query string if present
+            // Remove option from query string if present (handles both ? and &)
             const regex = new RegExp(`[&?]${option}=[^&]*`, 'gi');
             mongoUri = mongoUri.replace(regex, '');
+            // Also handle case where it's the first parameter
+            mongoUri = mongoUri.replace(new RegExp(`\\?${option}=[^&]*(&|$)`, 'gi'), (match, p1) => p1 === '&' ? '?' : '');
         });
+        
+        // Clean up any double question marks or trailing ampersands
+        mongoUri = mongoUri.replace(/\?\?/g, '?').replace(/&$/g, '').replace(/\?&/g, '?');
 
         // Connection options optimized for Huawei Cloud and production environments
         const connectionOptions = {
@@ -57,9 +62,8 @@ const dbConnection = async () => {
             authSource: process.env.DB_AUTH_SOURCE || 'admin',
         }
 
-        // Configure Mongoose buffering separately (not in connection options)
-        mongoose.set('bufferCommands', false);
-        mongoose.set('bufferMaxEntries', 0);
+        // Note: bufferCommands and bufferMaxEntries are deprecated in newer Mongoose versions
+        // Mongoose will handle buffering automatically
 
         // Connect to database
         await mongoose.connect(mongoUri, connectionOptions)
