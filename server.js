@@ -19,6 +19,7 @@ const allowedOrigins = [
     'http://localhost:3000',
     'http://127.0.0.1:5500',
     'https://fudmatechteam1.github.io',
+    'https://techtrust-backend.onrender.com',
     // Add Huawei Cloud domains if needed
     process.env.FRONTEND_URL,
     process.env.HUAWEI_CLOUD_FRONTEND_URL
