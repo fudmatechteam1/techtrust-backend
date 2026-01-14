@@ -1,3 +1,6 @@
+require("dotenv").config()
+
+
 const express = require("express")
 const mongoose = require("mongoose")
 const cors = require("cors")
@@ -7,7 +10,6 @@ const authRouter = require("./Routes/authRoute.js")
 const trustScoreRouter = require("./Routes/trustScoreRoute.js")
 const profileRouter = require("./Routes/profileRoute.js")
 const claimsRouter = require("./Routes/claimsRoute.js")
-require("dotenv").config()
 const app = express()
 
 // Initialize database connection
