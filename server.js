@@ -1,6 +1,5 @@
 require("dotenv").config()
 
-
 const express = require("express")
 const mongoose = require("mongoose")
 const cors = require("cors")
@@ -22,6 +21,7 @@ const allowedOrigins = [
     'http://127.0.0.1:5500',
     'https://fudmatechteam1.github.io',
     'https://techtrust-backend.onrender.com',
+    'https://techtrust-frontend.onrender.com', // 2. Added your Frontend Render URL
     // Add Huawei Cloud domains if needed
     process.env.FRONTEND_URL,
     process.env.HUAWEI_CLOUD_FRONTEND_URL

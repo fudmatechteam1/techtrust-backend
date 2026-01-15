@@ -16,14 +16,14 @@ const router = express.Router();
 // Public Routes
 router.post("/register", register);
 router.post("/login", login);
-router.post("/logout", logout);
+router.post("/logout", logout); // Logout can be public or protected depending on preference
 router.get("/fetch", getAll);
 
 // FIXED: Removed authMiddleWere to allow public verification
 router.post("/sendOtp", sendVerifyOtp);
 router.post("/verify", verifyAccount);
 
-// FIXED: Removed authMiddleWere and fixed function reference for reset flow
+// FIXED: Removed authMiddleWere and confirmed function reference for reset flow
 router.post("/sendResetOtp", sendResetOtp); 
 router.post("/resetPassword", resetPassword);
 
