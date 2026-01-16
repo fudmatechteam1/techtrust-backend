@@ -3,17 +3,8 @@ const bcrypt = require("bcryptjs")
 const jwt = require("jsonwebtoken")
 const transporter = require("../Nodemailer/transporter.js")
 
-// Helper to generate token
-const generateToken = (user) => {
-    return jwt.sign(
-        { id: user._id, role: user.userType },
-        process.env.JWT_SCRET || 'fallback_secret',
-        { expiresIn: "7d" }
-    );
-};
-
 // ==========================
-// 1. REGISTER USER (Sends OTP, NO Token)
+// 1. REGISTER USER
 // ==========================
 exports.register = async (req, res) => {
     const { name, email, password, userType } = req.body
@@ -28,15 +19,9 @@ exports.register = async (req, res) => {
             return res.status(400).json({ message: "User already exists" })
         }
 
-        if(!process.env.BREVO_API_KEY){ 
-            return res.status(503).json({message: "Service Unavailable: Email system not configured."})
-        }
-
+        // Generate a custom User ID (e.g., USER-X7Z9...)
         const userID = "USER-" + Math.random().toString(36).substr(2, 9).toUpperCase();
         const hashedPassword = await bcrypt.hash(password, 10);
-        
-        // Generate OTP
-        const otp = String(Math.floor(100000 + Math.random() * 900000));
 
         const user = new User({
             name,
@@ -44,27 +29,34 @@ exports.register = async (req, res) => {
             password: hashedPassword,
             userType: userType,
             userID: userID,
-            isAccountVerify: false, 
-            verifyOtp: otp,         
-            verifyOtpExpireAt: Date.now() + 10 * 60 * 1000 
+            isAccountVerify: false // Default to unverified
         });
 
         await user.save();
 
-        // Send OTP Email
-        const mailOption = {
-            to: user.email,
-            subject: "Verify Your Tech Trust Account",
-            text: `Welcome to Tech Trust! Your verification code is: ${otp}`
-        }
+        const token = jwt.sign(
+            { id: user._id, role: user.userType },
+            process.env.JWT_SCRET || 'fallback_secret', // Fixed typo in env var name if needed
+            { expiresIn: "7d" }
+        );
 
-        await transporter.sendMail(mailOption)
+        // Set cookie
+        res.cookie("token", token, {
+            httpOnly: true,
+            secure: true, // Always true for Render/Production
+            sameSite: "none",
+            maxAge: 7 * 24 * 60 * 60 * 1000
+        });
 
-        // SUCCESS: No Token Sent here. User must verify first.
         return res.status(201).json({ 
             success: true, 
-            message: "Registration successful. Please check your email for OTP.",
-            user: { email: user.email }
+            message: "Registration successful",
+            user: { 
+                name: user.name, 
+                email: user.email, 
+                userType: user.userType,
+                userID: user.userID 
+            }
         });
 
     } catch (error) {
@@ -74,62 +66,7 @@ exports.register = async (req, res) => {
 }
 
 // ==========================
-// 2. VERIFY ACCOUNT (Now Logs User In)
-// ==========================
-exports.verifyAccount = async(req, res)=>{
-    const {email, otp} = req.body
-    if(!email || !otp) return res.status(400).json({success: false, message: "Email and OTP required"})
-
-    try {
-        const user = await User.findOne({email: email.toLowerCase().trim()})
-        if(!user) return res.status(404).json({success: false, message: "User not found"})
-
-        if(user.isAccountVerify) return res.status(400).json({success: false, message: "Account already verified"})
-
-        if(user.verifyOtp !== otp){
-            return res.status(400).json({success: false, message: "Invalid OTP code"})
-        }
-
-        if(user.verifyOtpExpireAt < Date.now()){
-             return res.status(400).json({success: false, message: "OTP expired"})
-        }
-
-        // Verify Success
-        user.verifyOtp = ""
-        user.verifyOtpExpireAt = 0
-        user.accountStatus = "Verified"
-        user.isAccountVerify = true
-        await user.save()
-
-        // --- NEW: Generate Token Here (Auto Login) ---
-        const token = generateToken(user);
-        
-        res.cookie("token", token, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            maxAge: 7 * 24 * 60 * 60 * 1000
-        });
-
-        res.status(200).json({
-            success: true, 
-            message: "Account verified successfully",
-            token: token, // Send token to frontend
-            user: {
-                name: user.name,
-                email: user.email,
-                userType: user.userType,
-                id: user._id,
-                userID: user.userID
-            }
-        })
-    } catch (error) {
-        res.status(500).json({success: false, message: "Internal server error"})
-    }
-}
-
-// ==========================
-// 3. LOGIN USER
+// 2. LOGIN USER
 // ==========================
 exports.login = async(req, res)=>{
     const {email, password} = req.body
@@ -148,13 +85,12 @@ exports.login = async(req, res)=>{
         if(!isMatch){
             return res.status(401).json({ success: false, message: "Invalid credentials" })
         }
-        
-        // Optional: Check if verified before login
-        if(!user.isAccountVerify) {
-             return res.status(403).json({ success: false, message: "Please verify your email first." })
-        }
 
-        const token = generateToken(user);
+        const token = jwt.sign(
+            {id: user._id, role: user.userType}, 
+            process.env.JWT_SCRET || 'fallback_secret',
+            {expiresIn: "7d"}
+        )
 
         res.cookie("token", token, {
             httpOnly: true,
@@ -182,7 +118,7 @@ exports.login = async(req, res)=>{
 }
 
 // ==========================
-// 4. OTHER FUNCTIONS
+// 3. LOGOUT USER
 // ==========================
 exports.logout = async(req, res)=>{
     try {
@@ -198,6 +134,9 @@ exports.logout = async(req, res)=>{
     }
 }
 
+// ==========================
+// 4. GET ALL USERS (For Admin/Debug)
+// ==========================
 exports.getAll = async(req, res)=>{
     try {
         const users = await User.find().select('-password -verifyOtp -resetOtp')
@@ -207,13 +146,18 @@ exports.getAll = async(req, res)=>{
     }
 }
 
+// ==========================
+// 5. SEND VERIFY OTP
+// ==========================
 exports.sendVerifyOtp = async(req, res)=>{
     const {email} = req.body
     if(!email) return res.status(400).json({message: "Email is required"})
 
     try {
+        // CHECK: Ensure Brevo Key exists (removed SENDER_PASSWORD check)
         if(!process.env.BREVO_API_KEY){ 
-            return res.status(503).json({message: "Service Unavailable"})
+            console.error("Missing BREVO_API_KEY")
+            return res.status(503).json({message: "Email service not configured (API Key missing)."})
         }
 
         const user = await User.findOne({email})
@@ -223,7 +167,7 @@ exports.sendVerifyOtp = async(req, res)=>{
         
         const otp = String(Math.floor(100000 + Math.random() * 900000))
         user.verifyOtp = otp;
-        user.verifyOtpExpireAt = Date.now() + 10 * 60 * 1000
+        user.verifyOtpExpireAt = Date.now() + 10 * 60 * 1000 // 10 minutes
         await user.save()
 
         const mailOption = {
@@ -236,17 +180,56 @@ exports.sendVerifyOtp = async(req, res)=>{
 
         res.status(200).json({message: "OTP Code sent successfully"})
     } catch (error) {
+        console.error("SendVerifyOtp Error:", error)
         res.status(500).json({message: "Failed to send OTP", error: error.message})
     }
 }
 
+// ==========================
+// 6. VERIFY ACCOUNT
+// ==========================
+exports.verifyAccount = async(req, res)=>{
+    const {email, otp} = req.body
+    if(!email || !otp) return res.status(400).json({success: false, message: "Email and OTP required"})
+
+    try {
+        const user = await User.findOne({email: email.toLowerCase().trim()})
+        if(!user) return res.status(404).json({success: false, message: "User not found"})
+
+        if(user.isAccountVerify) return res.status(400).json({success: false, message: "Account already verified"})
+
+        if(user.verifyOtp !== otp){
+            return res.status(400).json({success: false, message: "Invalid OTP code"})
+        }
+
+        if(user.verifyOtpExpireAt < Date.now()){
+             return res.status(400).json({success: false, message: "OTP expired"})
+        }
+
+        // Verify Success
+        user.verifyOtp = ""
+        user.verifyOtpExpireAt = 0
+        user.accountStatus = "Verified"
+        user.isAccountVerify = true
+        await user.save()
+
+        res.status(200).json({success: true, message: "Account verified successfully"})
+    } catch (error) {
+        res.status(500).json({success: false, message: "Internal server error"})
+    }
+}
+
+// ==========================
+// 7. SEND RESET OTP
+// ==========================
 exports.sendResetOtp = async(req,res)=>{
     const {email} = req.body
     if(!email) return res.status(400).json({message: "Email is required"})
 
     try {
+        // CHECK: Ensure Brevo Key exists (removed SENDER_PASSWORD check)
         if(!process.env.BREVO_API_KEY){
-            return res.status(503).json({message: "Service Unavailable"})
+            return res.status(503).json({message: "Email service not configured (API Key missing)."})
         }
 
         const user = await User.findOne({email})
@@ -267,10 +250,14 @@ exports.sendResetOtp = async(req,res)=>{
 
         res.status(200).json({message: "Reset OTP sent successfully"})
     } catch (error) {
+        console.error("SendResetOtp Error:", error)
         res.status(500).json({message: "Failed to send reset OTP", error: error.message})
     }
 }
 
+// ==========================
+// 8. RESET PASSWORD
+// ==========================
 exports.resetPassword = async(req, res)=>{
     const {email, otp, newPassword} = req.body
     if(!email || !otp || !newPassword) return res.status(400).json({message: "All fields required"})
