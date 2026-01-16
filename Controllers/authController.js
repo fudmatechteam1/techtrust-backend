@@ -4,7 +4,7 @@ const jwt = require("jsonwebtoken")
 const transporter = require("../Nodemailer/transporter.js")
 
 // ==========================
-// 1. REGISTER USER
+// 1. REGISTER USER (FIXED: OTP required before account is active)
 // ==========================
 exports.register = async (req, res) => {
     const { name, email, password, userType } = req.body
@@ -14,48 +14,66 @@ exports.register = async (req, res) => {
     }
 
     try {
-        const userExist = await User.findOne({ email })
+        // Check email service configuration first
+        if (!process.env.BREVO_API_KEY) {
+            console.error("Missing BREVO_API_KEY")
+            return res.status(503).json({ message: "Email service not configured. Contact support." })
+        }
+
+        const userExist = await User.findOne({ email: email.toLowerCase().trim() })
         if (userExist) {
             return res.status(400).json({ message: "User already exists" })
         }
 
-        // Generate a custom User ID (e.g., USER-X7Z9...)
+        // Generate a custom User ID
         const userID = "USER-" + Math.random().toString(36).substr(2, 9).toUpperCase();
         const hashedPassword = await bcrypt.hash(password, 10);
 
+        // FIXED: Generate 6-digit OTP during registration
+        const otp = String(Math.floor(100000 + Math.random() * 900000));
+
         const user = new User({
             name,
-            email,
+            email: email.toLowerCase().trim(),
             password: hashedPassword,
             userType: userType,
             userID: userID,
-            isAccountVerify: false // Default to unverified
+            isAccountVerify: false,           // FIXED: Explicitly set unverified
+            accountStatus: "unVerified",      // FIXED: Set account status
+            verifyOtp: otp,                   // FIXED: Store OTP
+            verifyOtpExpireAt: Date.now() + 10 * 60 * 1000  // FIXED: 10 min expiry
         });
 
         await user.save();
 
-        const token = jwt.sign(
-            { id: user._id, role: user.userType },
-            process.env.JWT_SCRET || 'fallback_secret', // Fixed typo in env var name if needed
-            { expiresIn: "7d" }
-        );
+        // FIXED: Send OTP email immediately after registration
+        const mailOption = {
+            to: user.email,
+            subject: "Verify Your TechTrust Account",
+            html: `
+                <h2>Welcome to TechTrust, ${name}!</h2>
+                <p>Your verification code is:</p>
+                <h1 style="font-size: 32px; letter-spacing: 5px; color: #002B5C;">${otp}</h1>
+                <p>This code is valid for 10 minutes.</p>
+                <p>If you did not create this account, please ignore this email.</p>
+            `
+        };
 
-        // Set cookie
-        res.cookie("token", token, {
-            httpOnly: true,
-            secure: true, // Always true for Render/Production
-            sameSite: "none",
-            maxAge: 7 * 24 * 60 * 60 * 1000
-        });
+        await transporter.sendMail(mailOption);
+
+        // FIXED: Do NOT issue token - user must verify first
+        // No cookie set here
 
         return res.status(201).json({ 
             success: true, 
-            message: "Registration successful",
+            message: "Registration successful. Please verify your email.",
+            requiresVerification: true,  // FIXED: Flag for frontend
             user: { 
                 name: user.name, 
                 email: user.email, 
                 userType: user.userType,
-                userID: user.userID 
+                userID: user.userID,
+                isAccountVerify: false
             }
         });
 
@@ -66,7 +84,7 @@ exports.register = async (req, res) => {
 }
 
 // ==========================
-// 2. LOGIN USER
+// 2. LOGIN USER (FIXED: Block unverified users)
 // ==========================
 exports.login = async(req, res)=>{
     const {email, password} = req.body
@@ -86,6 +104,39 @@ exports.login = async(req, res)=>{
             return res.status(401).json({ success: false, message: "Invalid credentials" })
         }
 
+        // FIXED: Block login for unverified users
+        if (!user.isAccountVerify) {
+            // Optionally resend OTP
+            const otp = String(Math.floor(100000 + Math.random() * 900000));
+            user.verifyOtp = otp;
+            user.verifyOtpExpireAt = Date.now() + 10 * 60 * 1000;
+            await user.save();
+
+            // Send new OTP email
+            if (process.env.BREVO_API_KEY) {
+                const mailOption = {
+                    to: user.email,
+                    subject: "Verify Your TechTrust Account",
+                    html: `
+                        <h2>Hello ${user.name},</h2>
+                        <p>Your account is not verified. Use this code to verify:</p>
+                        <h1 style="font-size: 32px; letter-spacing: 5px; color: #002B5C;">${otp}</h1>
+                        <p>This code is valid for 10 minutes.</p>
+                    `
+                };
+                await transporter.sendMail(mailOption).catch(err => console.error("OTP Email Error:", err));
+            }
+
+            // FIXED: Return 403 with flag - NO token issued
+            return res.status(403).json({
+                success: false,
+                message: "Account not verified. A new OTP has been sent to your email.",
+                requiresVerification: true,  // FIXED: Frontend redirect flag
+                email: user.email            // Pass email for OTP form
+            })
+        }
+
+        // Only issue token for verified users
         const token = jwt.sign(
             {id: user._id, role: user.userType}, 
             process.env.JWT_SCRET || 'fallback_secret',
@@ -154,26 +205,30 @@ exports.sendVerifyOtp = async(req, res)=>{
     if(!email) return res.status(400).json({message: "Email is required"})
 
     try {
-        // CHECK: Ensure Brevo Key exists (removed SENDER_PASSWORD check)
         if(!process.env.BREVO_API_KEY){ 
             console.error("Missing BREVO_API_KEY")
             return res.status(503).json({message: "Email service not configured (API Key missing)."})
         }
 
-        const user = await User.findOne({email})
+        const user = await User.findOne({email: email.toLowerCase().trim()})
         if(!user) return res.status(404).json({message: "User not found"})
         
         if(user.isAccountVerify) return res.status(400).json({message: "User Already Verified"})
         
         const otp = String(Math.floor(100000 + Math.random() * 900000))
         user.verifyOtp = otp;
-        user.verifyOtpExpireAt = Date.now() + 10 * 60 * 1000 // 10 minutes
+        user.verifyOtpExpireAt = Date.now() + 10 * 60 * 1000
         await user.save()
 
         const mailOption = {
             to: user.email,
-            subject: "Verification Otp Code",
-            text: `Your Verification Code is ${otp}, Valid for 10 minutes`
+            subject: "Verification OTP Code",
+            html: `
+                <h2>Hello ${user.name},</h2>
+                <p>Your verification code is:</p>
+                <h1 style="font-size: 32px; letter-spacing: 5px; color: #002B5C;">${otp}</h1>
+                <p>This code is valid for 10 minutes.</p>
+            `
         }
 
         await transporter.sendMail(mailOption)
@@ -227,12 +282,11 @@ exports.sendResetOtp = async(req,res)=>{
     if(!email) return res.status(400).json({message: "Email is required"})
 
     try {
-        // CHECK: Ensure Brevo Key exists (removed SENDER_PASSWORD check)
         if(!process.env.BREVO_API_KEY){
             return res.status(503).json({message: "Email service not configured (API Key missing)."})
         }
 
-        const user = await User.findOne({email})
+        const user = await User.findOne({email: email.toLowerCase().trim()})
         if(!user) return res.status(404).json({message: "User not found"})
 
         const otp = String(Math.floor(100000 + Math.random() * 900000))
@@ -242,8 +296,13 @@ exports.sendResetOtp = async(req,res)=>{
 
         const mailOption = {
             to: email,
-            subject: "Reset Password Otp",
-            text: `Your reset OTP is ${otp}. Use this code to reset your password.`
+            subject: "Reset Password OTP",
+            html: `
+                <h2>Password Reset Request</h2>
+                <p>Your reset code is:</p>
+                <h1 style="font-size: 32px; letter-spacing: 5px; color: #002B5C;">${otp}</h1>
+                <p>This code is valid for 10 minutes.</p>
+            `
         }
 
         await transporter.sendMail(mailOption)
