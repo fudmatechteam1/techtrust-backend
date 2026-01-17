@@ -1,4 +1,4 @@
-const mongoose = required("mongoose")
+const mongoose = require("mongoose")
 const vettingSchema = new mongoose.Schema({
     flags:{
         type: String,
