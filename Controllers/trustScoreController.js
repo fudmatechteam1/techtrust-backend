@@ -1,6 +1,8 @@
 const axios = require('axios')
 const User = require('../Models/User.js')
 const Profile = require('../Models/Profile.js')
+const Vetting = require('../Models/vettingResult.js')
+
 
 /**
  * Trust Score Controller
@@ -76,6 +78,7 @@ exports.predictTrustScore = async (req, res) => {
 
         // Get user ID from authenticated request (if middleware is used)
         const userId = req.user?.id || req.body.userId
+        
 
         // Validate required fields
         const { 
@@ -123,6 +126,31 @@ exports.predictTrustScore = async (req, res) => {
         }
 
         const trustScoreData = response.data
+
+        // Sync to Database and stop duplicates
+        if (userId) {
+            try {
+                await Vetting.findOneAndUpdate(
+                    { user: userId }, 
+                    {
+                        user: userId,
+                        score: trustScoreData.trust_score,
+                        flags: trustScoreData.flags || "",
+                        scoreBreakdown: JSON.stringify(trustScoreData.breakdown),
+                        aiFeedback: trustScoreData.feedback || "Vetting completed successfully."
+                    },
+                    { upsert: true, new: true }
+                );
+                
+                // Update main Profile score field
+                await Profile.findOneAndUpdate(
+                    { user: userId },
+                    { currentTrustScore: trustScoreData.trust_score.toString() }
+                );
+            } catch (dbError) {
+                console.error('Database Sync Error:', dbError.message);
+            }
+        }
 
         // Optionally save to database if user is authenticated
         // Note: Profile model may need to be updated to include these fields
@@ -392,3 +420,22 @@ exports.getModelMetrics = async (req, res) => {
         })
     }
 }
+
+/**
+ * Get Vetted Professionals for Recruiter Dashboard
+ * GET /api/trust-score/vetted-pros
+ */
+exports.getVettedProfessionals = async (req, res) => {
+    try {
+        const results = await Vetting.find()
+            .populate('user', 'name email') 
+            .sort({ score: -1 });
+
+        res.status(200).json({
+            success: true,
+            data: results
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
