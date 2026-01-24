@@ -1,33 +1,22 @@
-const Claims = require("../Models/claims.js")
+const Claims = require("../Models/claims.js");
 
-exports.claim = async(req,res)=>{
-    const {claim} = req.body
-    if(!claim){
-        return res.status(400).json({message: "Input Field is Required"})
+exports.claim = async(req, res) => {
+    // 1. This 'claim' comes from the frontend request
+    const { claim } = req.body; 
+    
+    if(!claim) {
+        return res.status(400).json({message: "Input Field is Required"});
     }
-    try {
-        const claim = new Claims({claim})
-        await claim.save()
-
-        res.status(200).json({message: "claim successfil"})
-    } catch (error) {
-        console.log(error)
-        res.status(500).json({message:error.message})
-    }
-}
-
-exports.remove = async(req,res)=>{
-    const id = req.params.id
 
     try {
-        const claim = await Claims.findById(id)
-        if(!claim){
-            return res.status(400).json({message: "claim not found"})
-        }
-        const deleteclaim = await Claims.findByIdAndDelete(id)
-        res.status(200).json({message: "claim deleted  successfull"})
+        // 2. FIXED: Use a unique name like 'newClaim' for the database instance
+        // This avoids the "before initialization" error
+        const newClaim = new Claims({ claim }); 
+        await newClaim.save();
+
+        res.status(200).json({message: "claim successful"}); // Fixed typo: 'successfil'
     } catch (error) {
-         console.log(error)
-        res.status(500).json({message:error.message})
+        console.log(error);
+        res.status(500).json({message: error.message});
     }
 }
