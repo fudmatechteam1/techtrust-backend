@@ -36,10 +36,31 @@ exports.addExperience = async(req,res)=>{
     }
 
     try {
-        const profile = new Profile({skillsArray,experience,claimText,currentTrustScore})
-        await profile.save()
-
-        res.status(201).json({message:"Skills Added..."})
+        const userId = req.user.id
+        
+        // Check if profile already exists for this user
+        let profile = await Profile.findOne({ user: userId })
+        
+        if(profile){
+            // Update existing profile
+            profile.skillsArray = skillsArray
+            profile.experience = experience
+            profile.claimText = claimText
+            profile.currentTrustScore = currentTrustScore
+            await profile.save()
+            res.status(200).json({message:"Profile Updated Successfully", profile: profile})
+        } else {
+            // Create new profile with user reference
+            profile = new Profile({
+                user: userId,
+                skillsArray,
+                experience,
+                claimText,
+                currentTrustScore
+            })
+            await profile.save()
+            res.status(201).json({message:"Profile Created Successfully", profile: profile})
+        }
     } catch (error) {
          console.log(error)
         res.status(500).json({message: error.message})
@@ -54,6 +75,22 @@ exports.fetchById = async(req,res)=>{
             return res.status(400).json({message: "profile not find..."})
         }
 
+        res.status(200).json({message: profile})
+    } catch (error) {
+        console.log(error)
+        res.status(500).json({message: error.message})
+    }
+}
+
+exports.fetchMyProfile = async(req,res)=>{
+    try {
+        const userId = req.user.id
+        const profile = await Profile.findOne({ user: userId })
+        
+        if(!profile){
+            return res.status(404).json({message: "Profile not found"})
+        }
+        
         res.status(200).json({message: profile})
     } catch (error) {
         console.log(error)
