@@ -11,7 +11,7 @@ const { authMiddleWere } = require("../middleWere/authMiddlewere");
 router.get("/health", trustScoreController.getAIServiceHealth);
 router.get("/credentials", trustScoreController.getAvailableCredentials);
 router.get("/metrics", trustScoreController.getModelMetrics);
-router.get('/credentials/supported', trustScoreController.getSupportedCredentials);
+router.get('/credentials/supported', authMiddleWere, trustScoreController.getSupportedCredentials);
 
 // Protected routes
 router.post("/predict", authMiddleWere, trustScoreController.predictTrustScore);
