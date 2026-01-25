@@ -53,8 +53,8 @@ const getSupportedCredentials = async (req, res) => {
         const response = await aiServiceClient.get('/api/v1/credentials');
         return res.status(200).json({ success: true, data: response.data });
     } catch (error) {
-        console.error("Credentials Error:", error.message);
-        return res.status(500).json({ success: false, message: "Failed to fetch credentials from AI" });
+        console.error("Error fetching credentials:", error.message);
+        return res.status(500).json({ success: false, message: "Failed to fetch supported credentials from AI service" });
     }
 };
 
