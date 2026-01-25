@@ -5,7 +5,8 @@ const {
     getAvailableCredentials,
     getAIServiceHealth,
     getModelMetrics,
-    getVettedProfessionals // 1. Added this import
+    getVettedProfessionals, // 1. Added this import
+    getSupportedCredentials // <-- Add import
 } = require("../Controllers/trustScoreController.js");
 const { authMiddleWere } = require("../middleWere/authMiddlewere.js");
 
@@ -27,5 +28,8 @@ router.post("/predict/batch", authMiddleWere, predictTrustScoreBatch);
 
 // 3. Added route for the Recruiter Dashboard to fetch names correctly
 router.get("/vetted-pros", authMiddleWere, getVettedProfessionals);
+
+// Added route for supported credentials
+router.get('/credentials/supported', authMiddleWere, getSupportedCredentials);
 
 module.exports = router;

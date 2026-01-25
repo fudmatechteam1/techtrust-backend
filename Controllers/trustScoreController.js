@@ -348,6 +348,23 @@ exports.getAvailableCredentials = async (req, res) => {
 }
 
 /**
+ * Proxy supported credentials from Python AI service
+ */
+const getSupportedCredentials = async (req, res) => {
+    try {
+        const response = await aiServiceClient.get('/api/v1/credentials');
+        if (response.status === 200 && response.data) {
+            return res.status(200).json(response.data);
+        } else {
+            return res.status(response.status).json({ error: response.data?.detail || 'Failed to fetch credentials' });
+        }
+    } catch (error) {
+        console.error('Error fetching supported credentials:', error.message);
+        return res.status(500).json({ error: 'AI service unavailable', details: error.message });
+    }
+};
+
+/**
  * Get AI service health status
  * GET /api/trust-score/health
  */
@@ -438,4 +455,14 @@ exports.getVettedProfessionals = async (req, res) => {
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
+};
+
+module.exports = {
+    predictTrustScore,
+    predictTrustScoreBatch,
+    getAvailableCredentials,
+    getSupportedCredentials,
+    getAIServiceHealth,
+    getModelMetrics,
+    getVettedProfessionals
 };
