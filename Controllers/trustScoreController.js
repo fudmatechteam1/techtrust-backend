@@ -9,13 +9,27 @@ const aiServiceClient = axios.create({ baseURL: AI_SERVICE_URL, timeout: 30000, 
 // --- FUNCTION 1: PREDICT SCORE ---
 const predictTrustScore = async (req, res) => {
     try {
-        const { username, credentials } = req.body;
-        if (!username) return res.status(400).json({ success: false, message: "GitHub username is required" });
+        // 1. Get username from either field name (support both formats)
+        const username = req.body.username || req.body.githubUsername;
+        const { credentials } = req.body;
 
-        const user = await User.findOne({ githubUsername: username });
-        if (!user) return res.status(404).json({ success: false, message: "User not found" });
+        if (!username) {
+            return res.status(400).json({ success: false, message: "GitHub username is required" });
+        }
+
+        // 2. Try to find user by githubUsername OR username
+        const user = await User.findOne({ 
+            $or: [{ githubUsername: username }, { username: username }] 
+        });
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: `User '${username}' not found in database` });
+        }
         
+        // 3. Find profile linked to user
         const profile = await Profile.findOne({ user: user._id });
+
+        // 4. Map data (using your updated logic)
         const payload = {
             username: username,
             full_name: user.name || username,
@@ -32,14 +46,22 @@ const predictTrustScore = async (req, res) => {
             languages: profile?.skillsArray ? profile.skillsArray.split(',').map(s => s.trim()) : [],
             credentials: credentials || []
         };
+
         const aiResponse = await aiServiceClient.post('/api/v1/predict', payload);
         const prediction = aiResponse.data;
+
         if (profile) {
             profile.currentTrustScore = prediction.trust_score;
-            profile.trustScoreHistory.push({ score: prediction.trust_score, date: new Date(), reason: "Manual verification update" });
+            profile.trustScoreHistory.push({ 
+                score: prediction.trust_score, 
+                date: new Date(), 
+                reason: "Manual verification update" 
+            });
             await profile.save();
         }
+
         return res.status(200).json({ success: true, data: prediction });
+
     } catch (error) {
         console.error("Trust Score Error:", error.message);
         const status = error.code === 'ECONNREFUSED' ? 503 : 500;
