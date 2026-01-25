@@ -11,6 +11,7 @@ const authMiddleWare = require("../middleWere/authMiddlewere");
 router.get("/health", trustScoreController.getAIServiceHealth);
 router.get("/credentials", trustScoreController.getAvailableCredentials);
 router.get("/metrics", trustScoreController.getModelMetrics);
+router.get('/credentials/supported', trustScoreController.getSupportedCredentials);
 
 // Protected routes
 router.post("/predict", authMiddleWare, trustScoreController.predictTrustScore);
@@ -18,8 +19,5 @@ router.post("/predict/batch", authMiddleWare, trustScoreController.predictTrustS
 
 // Added route for the Recruiter Dashboard to fetch names correctly
 router.get("/vetted-pros", authMiddleWare, trustScoreController.getVettedProfessionals);
-
-// Added route for supported credentials
-router.get('/credentials/supported', authMiddleWare, trustScoreController.getSupportedCredentials);
 
 module.exports = router;
