@@ -3,7 +3,7 @@ const Profile = require('../Models/Profile');
 const User = require('../Models/User');
 const Vetting = require('../Models/vettingResult');
 // Configure AI Service
-const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://127.0.0.1:5000';
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000';
 const aiServiceClient = axios.create({ baseURL: AI_SERVICE_URL, timeout: 30000, headers: { 'Content-Type': 'application/json' } });
 
 // --- FUNCTION 1: PREDICT SCORE ---
