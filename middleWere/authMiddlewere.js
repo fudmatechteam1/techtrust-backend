@@ -1,30 +1,37 @@
 const jwt = require("jsonwebtoken");
 
 exports.authMiddleWere = async (req, res, next) => {
-    // 1. Try to get token from Header (New) OR Cookie (Original)
+    // 1. Try to get token from Cookies first
     let token = req.cookies?.token;
-    if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
-        token = req.headers.authorization.split(" ")[1];
+
+    // 2. If not in cookies, check the Authorization Header
+    if (!token && req.headers.authorization) {
+        if (req.headers.authorization.startsWith("Bearer ")) {
+            // Remove the "Bearer " prefix to get just the code
+            token = req.headers.authorization.split(" ")[1];
+        } else {
+            // If it's just the raw token in the header
+            token = req.headers.authorization;
+        }
     }
 
     if (!token) {
-        return res.status(400).json({ message: "Not Authorize token" });
+        return res.status(401).json({ success: false, message: "Not Authorize token" });
     }
 
     try {
-        // Using JWT_SCRET as per your original file spelling
+        // Verify using your specific env key: JWT_SCRET
         const decoded = jwt.verify(token, process.env.JWT_SCRET || process.env.JWT_SECRET);
         
-        if (decoded.id) {
+        if (decoded && decoded.id) {
             req.user = { id: decoded.id };
-            req.body.userId = decoded.id; 
+            req.body.userId = decoded.id; // Support for controller logic
+            next();
         } else {
-            return res.status(400).json({ message: "Not Authorize login" });
+            return res.status(401).json({ success: false, message: "Not Authorize login" });
         }
-        next();
     } catch (error) {
-        console.log("Auth Error:", error.message);
-        return res.status(400).json({ message: error.message });
+        console.error("JWT Verification Error:", error.message);
+        return res.status(401).json({ success: false, message: "Invalid or Malformed Token" });
     }
 };
-
