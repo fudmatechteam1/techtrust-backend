@@ -5,7 +5,6 @@ const router = express.Router()
 
 router.post("/expr",authMiddleWere,addExperience)
 router.get("/fetch1/:id",authMiddleWere,fetchAll)
-router.get("/fetch1/all",authMiddleWere,fetchAll)
 router.get("/fetch-user/:id",authMiddleWere,fetchUserById)
 router.get("/fetch-profile/:id",authMiddleWere,fetchById)
 router.put("/Edit-profile",authMiddleWere,updateProfile)
