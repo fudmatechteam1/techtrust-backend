@@ -1,35 +1,25 @@
 const express = require("express");
-const {
-    predictTrustScore,
-    predictTrustScoreBatch,
-    getAvailableCredentials,
-    getAIServiceHealth,
-    getModelMetrics,
-    getVettedProfessionals, // 1. Added this import
-    getSupportedCredentials // <-- Add import
-} = require("../Controllers/trustScoreController.js");
-const { authMiddleWere } = require("../middleWere/authMiddlewere.js");
-
 const router = express.Router();
+const trustScoreController = require("../Controllers/trustScoreController");
+const authMiddleWare = require("../middleWere/authMiddlewere");
 
 /**
  * Trust Score Routes
  */
 
 // Public routes
-router.get("/health", getAIServiceHealth);
-router.get("/credentials", getAvailableCredentials);
-router.get("/metrics", getModelMetrics);
+router.get("/health", trustScoreController.getAIServiceHealth);
+router.get("/credentials", trustScoreController.getAvailableCredentials);
+router.get("/metrics", trustScoreController.getModelMetrics);
 
 // Protected routes
-// 2. Enabled authMiddleWere so the controller can get req.user.id to prevent duplicates
-router.post("/predict", authMiddleWere, predictTrustScore); 
-router.post("/predict/batch", authMiddleWere, predictTrustScoreBatch);
+router.post("/predict", authMiddleWare, trustScoreController.predictTrustScore);
+router.post("/predict/batch", authMiddleWare, trustScoreController.predictTrustScoreBatch);
 
-// 3. Added route for the Recruiter Dashboard to fetch names correctly
-router.get("/vetted-pros", authMiddleWere, getVettedProfessionals);
+// Added route for the Recruiter Dashboard to fetch names correctly
+router.get("/vetted-pros", authMiddleWare, trustScoreController.getVettedProfessionals);
 
 // Added route for supported credentials
-router.get('/credentials/supported', authMiddleWere, getSupportedCredentials);
+router.get('/credentials/supported', authMiddleWare, trustScoreController.getSupportedCredentials);
 
 module.exports = router;
