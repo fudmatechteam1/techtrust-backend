@@ -19,7 +19,7 @@ const router = express.Router();
 
 // Public routes (no authentication required)
 router.get("/health", getAIServiceHealth);
-router.get("/credentials/supported",trustScoreController.getAvailableCredentials);
+router.get("/credentials", getAvailableCredentials);
 router.get("/metrics", getModelMetrics);
 
 // Protected routes (authentication required)
