@@ -1,6 +1,7 @@
 const axios = require('axios');
 const Profile = require('../Models/Profile');
 const User = require('../Models/User');
+const Vetting = require('../Models/vettingResult');
 // Configure AI Service
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://127.0.0.1:5000';
 const aiServiceClient = axios.create({ baseURL: AI_SERVICE_URL, timeout: 30000, headers: { 'Content-Type': 'application/json' } });
@@ -58,5 +59,71 @@ const getSupportedCredentials = async (req, res) => {
     }
 };
 
+// --- FUNCTION 3: GET AI SERVICE HEALTH ---
+const getAIServiceHealth = async (req, res) => {
+    try {
+        const response = await aiServiceClient.get('/health');
+        return res.status(200).json({ success: true, data: response.data });
+    } catch (error) {
+        console.error("AI Service Health Error:", error.message);
+        return res.status(500).json({ success: false, message: "Failed to fetch AI service health" });
+    }
+};
+
+// --- FUNCTION 4: GET AVAILABLE CREDENTIALS ---
+const getAvailableCredentials = async (req, res) => {
+    try {
+        const response = await aiServiceClient.get('/api/v1/credentials');
+        return res.status(200).json({ success: true, data: response.data });
+    } catch (error) {
+        console.error("Available Credentials Error:", error.message);
+        return res.status(500).json({ success: false, message: "Failed to fetch available credentials" });
+    }
+};
+
+// --- FUNCTION 5: GET MODEL METRICS ---
+const getModelMetrics = async (req, res) => {
+    try {
+        const response = await aiServiceClient.get('/api/v1/metrics');
+        return res.status(200).json({ success: true, data: response.data });
+    } catch (error) {
+        console.error("Model Metrics Error:", error.message);
+        return res.status(500).json({ success: false, message: "Failed to fetch model metrics" });
+    }
+};
+
+// --- FUNCTION 6: PREDICT TRUST SCORE BATCH ---
+const predictTrustScoreBatch = async (req, res) => {
+    try {
+        const { developers } = req.body;
+        if (!Array.isArray(developers) || developers.length === 0) {
+            return res.status(400).json({ success: false, message: 'Invalid request', error: 'Please provide an array of developer profiles' });
+        }
+        const aiResponse = await aiServiceClient.post('/api/v1/predict/batch', { developers });
+        return res.status(200).json({ success: true, data: aiResponse.data });
+    } catch (error) {
+        console.error("Batch Trust Score Error:", error.message);
+        return res.status(500).json({ success: false, message: "Failed to predict batch trust scores" });
+    }
+};
+
+// --- FUNCTION 7: GET VETTED PROFESSIONALS ---
+const getVettedProfessionals = async (req, res) => {
+    try {
+        const results = await Vetting.find().populate('user', 'name email').sort({ score: -1 });
+        res.status(200).json({ success: true, data: results });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 // --- EXPORTS (CRITICAL) ---
-module.exports = { predictTrustScore, getSupportedCredentials };
+module.exports = {
+    predictTrustScore,
+    getSupportedCredentials,
+    getAIServiceHealth,
+    getAvailableCredentials,
+    getModelMetrics,
+    predictTrustScoreBatch,
+    getVettedProfessionals
+};
