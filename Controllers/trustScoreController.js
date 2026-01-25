@@ -52,7 +52,14 @@ const predictTrustScore = async (req, res) => {
 const getSupportedCredentials = async (req, res) => {
     try {
         const response = await aiServiceClient.get('/api/v1/credentials');
-        return res.status(200).json({ success: true, data: response.data });
+        // Flatten or format the credentials if needed for frontend dropdown
+        let credentials = response.data;
+        if (Array.isArray(credentials)) {
+            credentials = credentials.flat();
+        } else if (credentials && credentials.data) {
+            credentials = credentials.data;
+        }
+        return res.status(200).json(credentials);
     } catch (error) {
         console.error("Error fetching credentials:", error.message);
         return res.status(500).json({ success: false, message: "Failed to fetch supported credentials from AI service" });
