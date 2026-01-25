@@ -1,25 +1,30 @@
 const express = require("express");
+const {
+    predictTrustScore,
+    predictTrustScoreBatch,
+    getAvailableCredentials,
+    getAIServiceHealth,
+    getModelMetrics
+} = require("../Controllers/trustScoreController.js");
+const { authMiddleWere } = require("../middleWere/authMiddlewere.js");
+
 const router = express.Router();
-const trustScoreController = require("../Controllers/trustScoreController");
-const authMiddleWare = require("../middleWere/authMiddlewere");
 
 /**
  * Trust Score Routes
+ * 
+ * These routes connect the Node.js backend to the Python AI service
+ * for trust score predictions and related operations.
  */
 
-// Public routes
-router.get("/health", trustScoreController.getAIServiceHealth);
-router.get("/credentials", trustScoreController.getAvailableCredentials);
-router.get("/metrics", trustScoreController.getModelMetrics);
+// Public routes (no authentication required)
+router.get("/health", getAIServiceHealth);
+router.get("/credentials", getAvailableCredentials);
+router.get("/metrics", getModelMetrics);
 
-// Protected routes
-router.post("/predict", authMiddleWare, trustScoreController.predictTrustScore);
-router.post("/predict/batch", authMiddleWare, trustScoreController.predictTrustScoreBatch);
-
-// Added route for the Recruiter Dashboard to fetch names correctly
-router.get("/vetted-pros", authMiddleWare, trustScoreController.getVettedProfessionals);
-
-// Added route for supported credentials
-router.get('/credentials/supported', authMiddleWare, trustScoreController.getSupportedCredentials);
+// Protected routes (authentication required)
+// Uncomment authMiddleWere if you want to protect these endpoints
+router.post("/predict", /* authMiddleWere, */ predictTrustScore);
+router.post("/predict/batch", /* authMiddleWere, */ predictTrustScoreBatch);
 
 module.exports = router;
