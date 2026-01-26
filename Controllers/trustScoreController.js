@@ -87,7 +87,9 @@ exports.predictTrustScore = async (req, res) => {
             totalContributors, 
             languages, 
             repoCount,
-            credentials = []
+            credentials = [],
+            jobTitle,
+            location
         } = req.body
 
         if (!username) {
@@ -125,17 +127,13 @@ exports.predictTrustScore = async (req, res) => {
         const trustScoreData = response.data
 
         // Optionally save to database if user is authenticated
-        // Note: Profile model may need to be updated to include these fields
-        // For now, we'll skip saving to avoid schema conflicts
-        // Uncomment and update Profile model schema if you want to persist trust scores
-        /*
         if (userId) {
             try {
                 // Update or create profile with trust score
                 await Profile.findOneAndUpdate(
-                    { userId: userId },
+                    { user: userId },
                     {
-                        userId: userId,
+                        user: userId,
                         currentTrustScore: trustScoreData.trust_score.toString(),
                         trustScoreData: JSON.stringify({
                             trustScore: trustScoreData.trust_score,
@@ -145,6 +143,8 @@ exports.predictTrustScore = async (req, res) => {
                             breakdown: trustScoreData.breakdown,
                             credentialsInfo: trustScoreData.credentials_info
                         }),
+                        jobTitle: jobTitle,
+                        location: location,
                         lastUpdated: new Date()
                     },
                     { upsert: true, new: true }
@@ -154,7 +154,6 @@ exports.predictTrustScore = async (req, res) => {
                 // Don't fail the request if DB save fails
             }
         }
-        */
 
         // Return success response
         res.status(200).json({
@@ -389,6 +388,47 @@ exports.getModelMetrics = async (req, res) => {
             success: false,
             message: 'Internal server error',
             error: process.env.NODE_ENV === 'development' ? error.message : 'Failed to retrieve model metrics'
+        })
+    }
+}
+
+/**
+ * Get vetted professionals for recruiter dashboard cards
+ * GET /api/trust-score/vetted-pros
+ */
+exports.getVettedProfessionals = async (req, res) => {
+    try {
+        const vettedProfiles = await Profile.find({
+            currentTrustScore: { $exists: true, $ne: null, $ne: "" },
+            user: { $exists: true, $ne: null }
+        }).populate({ path: 'user', model: 'tech-users', select: 'name email avatar' })
+
+        const formatted = vettedProfiles.map((profile) => ({
+            _id: profile._id,
+            userId: profile.user?._id || profile.user,
+            name: profile.user?.name || 'N/A',
+            email: profile.user?.email || 'N/A',
+            avatar: profile.user?.avatar || '',
+            title: profile.jobTitle || 'N/A',
+            location: profile.location || 'N/A',
+            currentTrustScore: profile.currentTrustScore || 'N/A',
+            trustScoreData: profile.trustScoreData || '',
+            skillsArray: profile.skillsArray,
+            experience: profile.experience,
+            claimText: profile.claimText
+        }))
+
+        res.status(200).json({
+            success: true,
+            message: 'Vetted professionals retrieved successfully',
+            data: formatted
+        })
+    } catch (error) {
+        console.error('Get Vetted Professionals Error:', error)
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+            error: process.env.NODE_ENV === 'development' ? error.message : 'Failed to retrieve vetted professionals'
         })
     }
 }

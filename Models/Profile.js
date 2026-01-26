@@ -1,5 +1,6 @@
 const mongoose = require("mongoose")
 const profileSchema = new mongoose.Schema({
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     skillsArray:{
         type: String,
         required: true
@@ -15,8 +16,12 @@ const profileSchema = new mongoose.Schema({
     },
     currentTrustScore:{
         type: String,
-        required: true
+        required: false
     },
+    bio: { type: String },
+    location: { type: String },
+    jobTitle: { type: String },
+    trustScoreData: { type: String },
 },{
     timestamps: true
 });

@@ -6,6 +6,7 @@ const {
     getAIServiceHealth,
     getModelMetrics
 } = require("../Controllers/trustScoreController.js");
+const trustScoreController = require("../Controllers/trustScoreController.js");
 const { authMiddleWere } = require("../middleWere/authMiddlewere.js");
 
 const router = express.Router();
@@ -26,5 +27,6 @@ router.get("/metrics", getModelMetrics);
 // Uncomment authMiddleWere if you want to protect these endpoints
 router.post("/predict", /* authMiddleWere, */ predictTrustScore);
 router.post("/predict/batch", /* authMiddleWere, */ predictTrustScoreBatch);
+router.get("/vetted-pros", authMiddleWere, trustScoreController.getVettedProfessionals);
 
 module.exports = router;
