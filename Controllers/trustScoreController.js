@@ -129,6 +129,14 @@ exports.predictTrustScore = async (req, res) => {
         // Optionally save to database if user is authenticated
         if (userId) {
             try {
+                // Extract vetting summary from AI response (check multiple possible field names)
+                const vettingSummary = trustScoreData.vetting_summary 
+                    || trustScoreData.summary 
+                    || trustScoreData.explanation 
+                    || trustScoreData.analysis_summary 
+                    || trustScoreData.text_summary 
+                    || '';
+
                 // Update or create profile with trust score
                 await Profile.findOneAndUpdate(
                     { user: userId },
@@ -143,6 +151,8 @@ exports.predictTrustScore = async (req, res) => {
                             breakdown: trustScoreData.breakdown,
                             credentialsInfo: trustScoreData.credentials_info
                         }),
+                        githubUsername: username,
+                        vettingSummary: vettingSummary,
                         jobTitle: jobTitle,
                         location: location,
                         lastUpdated: new Date()
@@ -409,6 +419,8 @@ exports.getVettedProfessionals = async (req, res) => {
             name: profile.user?.name || 'N/A',
             email: profile.user?.email || 'N/A',
             avatar: profile.user?.avatar || '',
+            githubUsername: profile.githubUsername || '',
+            vettingSummary: profile.vettingSummary || '',
             title: profile.jobTitle || 'N/A',
             location: profile.location || 'N/A',
             currentTrustScore: profile.currentTrustScore || 'N/A',
