@@ -130,12 +130,14 @@ exports.predictTrustScore = async (req, res) => {
         if (userId) {
             try {
                 // Extract vetting summary from AI response (check multiple possible field names)
-                const vettingSummary = trustScoreData.vetting_summary 
-                    || trustScoreData.summary 
-                    || trustScoreData.explanation 
-                    || trustScoreData.analysis_summary 
-                    || trustScoreData.text_summary 
-                    || '';
+                // This version keeps all your original checks plus the new one for the AI breakdown
+const vettingSummary = trustScoreData.vetting_summary 
+    || trustScoreData.breakdown?.summary 
+    || trustScoreData.summary 
+    || trustScoreData.explanation 
+    || trustScoreData.analysis_summary 
+    || trustScoreData.text_summary 
+    || "Profile verified successfully via GitHub Analysis.";
 
                 // Update or create profile with trust score
                 await Profile.findOneAndUpdate(
@@ -416,7 +418,7 @@ exports.getVettedProfessionals = async (req, res) => {
         const formatted = vettedProfiles.map((profile) => ({
             _id: profile._id,
             userId: profile.user?._id || profile.user,
-            name: profile.user?.name || 'N/A',
+name: profile.githubUsername || profile.user?.name || 'Verified Professional',
             email: profile.user?.email || 'N/A',
             avatar: profile.user?.avatar || '',
             githubUsername: profile.githubUsername || '',
@@ -444,3 +446,4 @@ exports.getVettedProfessionals = async (req, res) => {
         })
     }
 }
+
