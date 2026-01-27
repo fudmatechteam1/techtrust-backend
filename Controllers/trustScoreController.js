@@ -129,16 +129,6 @@ exports.predictTrustScore = async (req, res) => {
         // Optionally save to database if user is authenticated
         if (userId) {
             try {
-                // Extract vetting summary from AI response (check multiple possible field names)
-                // This version keeps all your original checks plus the new one for the AI breakdown
-const vettingSummary = trustScoreData.vetting_summary 
-    || trustScoreData.breakdown?.summary 
-    || trustScoreData.summary 
-    || trustScoreData.explanation 
-    || trustScoreData.analysis_summary 
-    || trustScoreData.text_summary 
-    || "Profile verified successfully via GitHub Analysis.";
-
                 // Update or create profile with trust score
                 await Profile.findOneAndUpdate(
                     { user: userId },
@@ -153,8 +143,6 @@ const vettingSummary = trustScoreData.vetting_summary
                             breakdown: trustScoreData.breakdown,
                             credentialsInfo: trustScoreData.credentials_info
                         }),
-                        githubUsername: username,
-                        vettingSummary: vettingSummary,
                         jobTitle: jobTitle,
                         location: location,
                         lastUpdated: new Date()
@@ -418,11 +406,9 @@ exports.getVettedProfessionals = async (req, res) => {
         const formatted = vettedProfiles.map((profile) => ({
             _id: profile._id,
             userId: profile.user?._id || profile.user,
-name: profile.githubUsername || profile.user?.name || 'Verified Professional',
+            name: profile.user?.name || 'N/A',
             email: profile.user?.email || 'N/A',
             avatar: profile.user?.avatar || '',
-            githubUsername: profile.githubUsername || '',
-            vettingSummary: profile.vettingSummary || '',
             title: profile.jobTitle || 'N/A',
             location: profile.location || 'N/A',
             currentTrustScore: profile.currentTrustScore || 'N/A',
@@ -446,4 +432,3 @@ name: profile.githubUsername || profile.user?.name || 'Verified Professional',
         })
     }
 }
-

@@ -22,8 +22,6 @@ const profileSchema = new mongoose.Schema({
     location: { type: String },
     jobTitle: { type: String },
     trustScoreData: { type: String },
-    githubUsername: { type: String },
-    vettingSummary: { type: String },
 },{
     timestamps: true
 });
